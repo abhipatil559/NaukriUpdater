@@ -40,3 +40,6 @@ applied_jobs.csv
 
 # Gemini
 .gemini/
+
+node_modules
+dist
