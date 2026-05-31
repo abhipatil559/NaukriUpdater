@@ -1,0 +1,16 @@
+requests
+urllib3
+httpcloak
+python-dotenv
+selenium
+pycryptodome
+colorama
+PyPDF2
+flask
+flask-sqlalchemy
+flask-cors
+psycopg2-binary
+PyJWT
+bcrypt
+cryptography
+gunicorn
