@@ -18,7 +18,7 @@ export async function register(email, password) {
   localStorage.setItem('token', data.token);
   return data;
 }
-
+// Testing
 export async function login(email, password) {
   const res = await fetch(`${API_URL}/api/auth/login`, {
     method: 'POST',
