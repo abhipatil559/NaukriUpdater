@@ -128,7 +128,12 @@ def _refresh_user(profile: Profile, cycle: int) -> dict:
 @cron_bp.route("/refresh", methods=["GET"])
 def refresh_all():
     """Refresh all active users' Naukri profiles. Called by cron-job.org."""
+    # Allow secret via query param OR Authorization header (Bearer token)
     secret = request.args.get("secret", "")
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        secret = auth_header.split(" ", 1)[1]
+
     if CRON_SECRET and secret != CRON_SECRET:
         return jsonify({"error": "Unauthorized"}), 401
 
