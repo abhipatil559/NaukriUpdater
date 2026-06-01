@@ -146,8 +146,16 @@ class NaukriLoginClient:
         res = self._login_request()
 
         if not res.ok:
-            print(res.content)
-            raise NaukriAuthError("Login failed")
+            # Log full details so we can diagnose the exact rejection reason
+            try:
+                body = res.json()
+            except Exception:
+                body = res.text[:500]
+            logger.error(
+                "Naukri login failed | HTTP %s | Body: %s",
+                res.status_code, body,
+            )
+            raise NaukriAuthError(f"Login failed (HTTP {res.status_code})")
 
         token = self._get_cookie("nauk_at")
         if not token:

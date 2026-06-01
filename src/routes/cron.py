@@ -67,10 +67,12 @@ def _refresh_user(profile: Profile, cycle: int) -> dict:
         client.login()
         result["actions"].append({"action": "login", "status": "success"})
     except Exception as e:
-        result["actions"].append({"action": "login", "status": "failed", "error": str(e)})
+        error_msg = str(e)
+        logger.error("Naukri login failed for %s: %s", profile.naukri_username, error_msg)
+        result["actions"].append({"action": "login", "status": "failed", "error": error_msg})
         result["overall"] = "failed"
         profile.last_status = "failed"
-        profile.last_error = f"Login failed: {e}"
+        profile.last_error = error_msg
         profile.last_refreshed = datetime.utcnow()
         db.session.commit()
         return result
