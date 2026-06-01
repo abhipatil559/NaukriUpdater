@@ -178,3 +178,88 @@ def refresh_all():
         "total_users": len(active_profiles),
         "results": results,
     })
+
+
+# ------------------------------------------------------------------
+# Local cron worker endpoints
+#
+# These endpoints are used by local_cron.py (running on a home machine)
+# to fetch user profiles and report back results. The local script
+# handles the actual Naukri login from a residential IP to avoid
+# reCAPTCHA blocks on datacenter IPs.
+# ------------------------------------------------------------------
+
+def _verify_cron_secret():
+    """Check CRON_SECRET from query param or Authorization header."""
+    secret = request.args.get("secret", "")
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        secret = auth_header.split(" ", 1)[1]
+    if CRON_SECRET and secret != CRON_SECRET:
+        return False
+    return True
+
+
+@cron_bp.route("/cron/profiles", methods=["GET"])
+def get_cron_profiles():
+    """Return all active profiles for the local cron worker.
+    Passwords are returned encrypted — the local script decrypts them."""
+    if not _verify_cron_secret():
+        return jsonify({"error": "Unauthorized"}), 401
+
+    active_profiles = Profile.query.filter_by(is_active=True).filter(
+        Profile.naukri_username.isnot(None),
+        Profile.naukri_password.isnot(None),
+    ).all()
+
+    profiles_data = []
+    for p in active_profiles:
+        profiles_data.append({
+            "user_id": p.user_id,
+            "naukri_username": p.naukri_username,
+            "naukri_password_encrypted": p.naukri_password,
+            "resume_drive_link": p.resume_drive_link,
+            "headline_1": p.headline_1,
+            "headline_2": p.headline_2,
+            "summary_1": p.summary_1,
+            "summary_2": p.summary_2,
+            "total_refreshes": p.total_refreshes or 0,
+            "refresh_interval": p.refresh_interval or 3600,
+            "last_refreshed": p.last_refreshed.isoformat() if p.last_refreshed else None,
+        })
+
+    return jsonify({"profiles": profiles_data, "count": len(profiles_data)})
+
+
+@cron_bp.route("/cron/results", methods=["POST"])
+def post_cron_results():
+    """Receive refresh results from the local cron worker and update DB."""
+    if not _verify_cron_secret():
+        return jsonify({"error": "Unauthorized"}), 401
+
+    data = request.get_json() or {}
+    results = data.get("results", [])
+
+    updated = 0
+    for r in results:
+        user_id = r.get("user_id")
+        if not user_id:
+            continue
+
+        profile = Profile.query.filter_by(user_id=user_id).first()
+        if not profile:
+            continue
+
+        profile.last_refreshed = datetime.utcnow()
+        profile.last_status = r.get("status", "unknown")
+        profile.last_error = r.get("error")
+
+        if r.get("status") == "success":
+            profile.total_refreshes = (profile.total_refreshes or 0) + 1
+
+        updated += 1
+
+    db.session.commit()
+    logger.info("Cron results received: %d users updated", updated)
+
+    return jsonify({"updated": updated, "received": len(results)})
